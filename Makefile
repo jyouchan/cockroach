@@ -418,7 +418,6 @@ CRYPTOPP_SRC_DIR := $(C_DEPS_DIR)/cryptopp
 JEMALLOC_SRC_DIR := $(C_DEPS_DIR)/jemalloc
 PROTOBUF_SRC_DIR := $(C_DEPS_DIR)/protobuf
 ROCKSDB_SRC_DIR  := $(C_DEPS_DIR)/rocksdb
-PEBBLESDB_SRC_DIR  := $(C_DEPS_DIR)/pebblesdb
 SNAPPY_SRC_DIR   := $(C_DEPS_DIR)/snappy
 LIBROACH_SRC_DIR := $(C_DEPS_DIR)/libroach
 
@@ -497,14 +496,13 @@ CRYPTOPP_DIR := $(BUILD_DIR)/cryptopp
 JEMALLOC_DIR := $(BUILD_DIR)/jemalloc
 PROTOBUF_DIR := $(BUILD_DIR)/protobuf
 ROCKSDB_DIR  := $(BUILD_DIR)/rocksdb$(STDMALLOC_SUFFIX)$(if $(ENABLE_ROCKSDB_ASSERTIONS),_assert)
-PEBBLESDB_DIR:= $(BUILD_DIR)/pebblesdb
 SNAPPY_DIR   := $(BUILD_DIR)/snappy
 LIBROACH_DIR := $(BUILD_DIR)/libroach
 # Can't share with protobuf because protoc is always built for the host.
 PROTOC_DIR := $(GOPATH)/native/$(HOST_TRIPLE)/protobuf
 PROTOC 		 := $(PROTOC_DIR)/protoc
 
-C_LIBS_COMMON = $(if $(USE_STDMALLOC),,libjemalloc) libprotobuf libsnappy librocksdb libpebblesdb
+C_LIBS_COMMON = $(if $(USE_STDMALLOC),,libjemalloc) libprotobuf libsnappy librocksdb
 C_LIBS_OSS = $(C_LIBS_COMMON) libroach
 C_LIBS_CCL = $(C_LIBS_COMMON) libcryptopp libroachccl
 
@@ -546,7 +544,7 @@ $(CGO_FLAGS_FILES): Makefile
 	@echo 'package $(notdir $(@D))' >> $@
 	@echo >> $@
 	@echo '// #cgo CPPFLAGS: -I$(JEMALLOC_DIR)/include' >> $@
-	@echo '// #cgo LDFLAGS: $(addprefix -L,$(CRYPTOPP_DIR) $(PROTOBUF_DIR) $(JEMALLOC_DIR)/lib $(SNAPPY_DIR) $(ROCKSDB_DIR) $(PEBBLESDB_DIR) $(LIBROACH_DIR))' >> $@
+	@echo '// #cgo LDFLAGS: $(addprefix -L,$(CRYPTOPP_DIR) $(PROTOBUF_DIR) $(JEMALLOC_DIR)/lib $(SNAPPY_DIR) $(ROCKSDB_DIR) $(LIBROACH_DIR))' >> $@
 	@echo 'import "C"' >> $@
 
 # BUILD ARTIFACT CACHING
@@ -621,14 +619,6 @@ $(ROCKSDB_DIR)/Makefile: $(C_DEPS_DIR)/rocksdb-rebuild | $(SUBMODULES_TARGET) li
 	  $(if $(USE_STDMALLOC),,-DJEMALLOC_LIBRARIES=$(JEMALLOC_DIR)/lib/libjemalloc.a -DJEMALLOC_INCLUDE_DIR=$(JEMALLOC_DIR)/include -DWITH_JEMALLOC=ON) \
 	  -DCMAKE_BUILD_TYPE=$(if $(ENABLE_ROCKSDB_ASSERTIONS),Debug,Release)
 
-$(PEBBLESDB_DIR)/Makefile: $(C_DEPS_DIR)/pebblesdb-rebuild
-	rm -rf $(PEBBLESDB_DIR)
-	mkdir -p $(PEBBLESDB_DIR)
-	cp -r $(PEBBLESDB_SRC_DIR)/* $(PEBBLESDB_DIR)
-	# TODO: might need to do a manual clean
-	cd $(PEBBLESDB_DIR) && autoreconf -i
-	cd $(PEBBLESDB_DIR) && export LDFLAGS="-L../snappy" && $(PEBBLESDB_DIR)/configure
-
 $(SNAPPY_DIR)/Makefile: $(C_DEPS_DIR)/snappy-rebuild | $(SUBMODULES_TARGET)
 	rm -rf $(SNAPPY_DIR)
 	mkdir -p $(SNAPPY_DIR)
@@ -679,10 +669,6 @@ libsnappy: $(SNAPPY_DIR)/Makefile
 librocksdb: $(ROCKSDB_DIR)/Makefile
 	@$(MAKE) --no-print-directory -C $(ROCKSDB_DIR) rocksdb
 
-.PHONY: libpebblesdb
-libpebblesdb: $(PEBBLESDB_DIR)/Makefile
-	@$(MAKE) --no-print-directory -C $(PEBBLESDB_DIR) all-am
-
 .PHONY: libroach
 libroach: $(LIBROACH_DIR)/Makefile
 	@$(MAKE) --no-print-directory -C $(LIBROACH_DIR) roach
@@ -693,7 +679,7 @@ libroachccl: $(LIBROACH_DIR)/Makefile
 
 PHONY: check-libroach
 check-libroach: ## Run libroach tests.
-check-libroach: $(LIBROACH_DIR)/Makefile libjemalloc libprotobuf libsnappy librocksdb libpebblesdb libcryptopp
+check-libroach: $(LIBROACH_DIR)/Makefile libjemalloc libprotobuf libsnappy librocksdb libcryptopp
 	@$(MAKE) --no-print-directory -C $(LIBROACH_DIR)
 	cd $(LIBROACH_DIR) && ctest -V -R $(TESTS)
 
@@ -1004,7 +990,6 @@ UI_JS := $(UI_ROOT)/src/js/protos.js
 UI_TS := $(UI_ROOT)/src/js/protos.d.ts
 UI_PROTOS := $(UI_JS) $(UI_TS)
 
-# TODO: probably need to include a pebbles proto here
 CPP_PROTOS := $(filter %/roachpb/metadata.proto %/roachpb/data.proto %/roachpb/internal.proto %/engine/enginepb/mvcc.proto %/engine/enginepb/mvcc3.proto %/engine/enginepb/file_registry.proto %/engine/enginepb/rocksdb.proto %/hlc/legacy_timestamp.proto %/hlc/timestamp.proto %/unresolved_addr.proto,$(GO_PROTOS))
 CPP_HEADERS := $(subst $(PKG_ROOT),$(CPP_PROTO_ROOT),$(CPP_PROTOS:%.proto=%.pb.h))
 CPP_SOURCES := $(subst $(PKG_ROOT),$(CPP_PROTO_ROOT),$(CPP_PROTOS:%.proto=%.pb.cc))
@@ -1250,7 +1235,6 @@ clean-c-deps:
 	rm -rf $(JEMALLOC_DIR)
 	rm -rf $(PROTOBUF_DIR)
 	rm -rf $(ROCKSDB_DIR)
-	rm -rf $(PEBBLESDB_DIR)
 	rm -rf $(SNAPPY_DIR)
 
 .PHONY: unsafe-clean-c-deps
@@ -1259,7 +1243,6 @@ unsafe-clean-c-deps:
 	git -C $(JEMALLOC_SRC_DIR) clean -dxf
 	git -C $(PROTOBUF_SRC_DIR) clean -dxf
 	git -C $(ROCKSDB_SRC_DIR)  clean -dxf
-	git -C $(PEBBLESDB_SRC_DIR) clean -dxf
 	git -C $(SNAPPY_SRC_DIR)   clean -dxf
 
 .PHONY: clean
