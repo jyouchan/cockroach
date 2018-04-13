@@ -20,6 +20,3 @@
 [submodule "c-deps/googletest"]
 	path = c-deps/googletest
 	url = https://github.com/cockroachdb/googletest
-[submodule "c-deps/pebblesdb"]
-	path = c-deps/pebblesdb
-	url = https://github.com/utsaslab/pebblesdb.git
